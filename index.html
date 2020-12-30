@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=UTF-8 />
+  <link rel="stylesheet" type="text/css" href="styles.css" />
+</head>
+<body>
+  <video id="video" width="800" src="test4.mp4" muted loop controls></video>
+  <canvas id="output-canvas" width="800" height="450"></canvas>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0"></script>
+  <script>
+    let video, c_out, ctx_out, c_tmp, ctx_tmp, model;
+    const bodyPixConfig = {
+      architechture: 'MobileNetV1',
+      outputStride: 16,
+      multiplier: 1,
+      quantBytes: 4
+    };
+    const segmentationConfig = {
+      internalResolution: 'high',
+      segmentationThreshold: 0.05,
+      scoreThreshold: 0.05
+    };
+    function init() {
+      video = document.getElementById("video");
+
+      c_out = document.getElementById("output-canvas");
+      ctx_out = c_out.getContext("2d");
+
+      c_tmp = document.createElement("canvas");
+      c_tmp.setAttribute("width",800);
+      c_tmp.setAttribute("height",450);
+      ctx_tmp = c_tmp.getContext("2d");
+
+      video.play();
+      computeFrame();
+    }
+    function computeFrame() {
+      ctx_tmp.drawImage(video,0,0,video.videoWidth,video.videoHeight);
+      let frame = ctx_tmp.getImageData(0,0,video.videoWidth,video.videoHeight);
+
+      model.segmentPerson(c_tmp,segmentationConfig).then((segmentation) => {
+        let out_image = ctx_out.getImageData(0,0,video.videoWidth,video.videoHeight);
+
+        for(let x=0;x<video.videoWidth;x++){
+          for(y=0;y<video.videoHeight;y++) {
+            let n = x + (y * video.videoWidth);
+
+            if(segmentation.data[n] == 0) {
+              out_image.data[n * 4] = frame.data[n * 4]; //R
+              out_image.data[n * 4 + 1] = frame.data[n * 4 + 1]; //G
+              out_image.data[n * 4 + 2] = frame.data[n * 4 + 2]; //B
+              out_image.data[n * 4 + 3] = frame.data[n * 4 + 3]; //A
+            }
+          }
+        }
+        ctx_out.putImageData(out_image,0,0);
+        setTimeout(computeFrame,0);
+      });
+    }
+    document.addEventListener("DOMContentLoaded", () => {
+      bodyPix.load(bodyPixConfig).then((m) => {
+        model = m;
+        init();
+      });
+    });
+  </script>
+</body>
+</html>
